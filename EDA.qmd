@@ -5,23 +5,51 @@ format: html
 editor: visual
 ---
 
-## Quarto
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
-
-```{r}
-1 + 1
+```{r load packages}
+library(tidyverse)
 ```
 
-You can add options to executable code like this
+## Introduction
 
-```{r}
-#| echo: false
-2 * 2
+The purpose of this analysis is to create a predictive model for the incidence of diabetes using data from the 2015 [Behavioral Risk Factor Surveillance System (BRFSS)](https://www.cdc.gov/brfss/index.html) survey conducted by the Centers for Disease Control. The dataset we will use for modeling includes survey responses from 253,680 individuals.
+
+The response variable in the dataset, `Diabetes_binary`, is a 0/1 indicator for the presence of diabetes or prediabetes. There are a number of potential predictors in the dataset, but we will consider only the following health-related variables in the dataset:
+
+-   `HighBP`: a binary indicator for hypertension
+-   `HighChol`: a binary indicator for hyperlipidemia
+-   `HvyAlcoholConsump`: a binary indicator for alcohol consumption that meets or exceeds 14 drinks/week for men or 7 drinks/week for women
+-   `AnyHealthcare`: a binary indicator for having any kind of health insurance coverage
+-   `GenHlth`: an ordinal variable for self-rated general health, ranging from 1 ("Excellent") to 5 ("Poor")
+
+Sex and age will also be considered.
+
+## Analysis Data
+
+We'll first read in the raw data from the CSV file and then transform the predictors of interest into a form suitable for analysis:
+
+```{r create data}
+#Read in the raw data
+#| warning: false
+diabetes_raw <- read_csv(file="diabetes_binary_health_indicators_BRFSS2015.csv")
+
+
+#Create an analysis dataset containing only the relevant variables
+diabetes_ad <- diabetes_raw |> select(Diabetes_binary, HighBP ,HighChol, BMI, Smoker, HvyAlcoholConsump, AnyHealthcare, GenHlth) |>
+  mutate(high_bp = as_factor(HighBP),
+         high_chol = as_factor(HighChol),
+         heavy_alc = as_factor(HvyAlcoholConsump),
+         smoker = as_factor(Smoker)
+         healthcare = as_factor(AnyHealthcare),
+         gen_health = as_factor(GenHlth),
+         .keep="unused")
+
+#Check for missing data
+colSums(diabetes_ad,is.na)
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+## Exploratory Analysis
+
+## Link to modeling page
+
+[Click here for the modeling page.](Modeling.html "Modeling.html")
