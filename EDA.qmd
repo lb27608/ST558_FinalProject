@@ -7,6 +7,7 @@ editor: visual
 
 
 ```{r load packages}
+#| include: false
 library(tidyverse)
 ```
 
@@ -16,39 +17,47 @@ The purpose of this analysis is to create a predictive model for the incidence o
 
 The response variable in the dataset, `Diabetes_binary`, is a 0/1 indicator for the presence of diabetes or prediabetes. There are a number of potential predictors in the dataset, but we will consider only the following health-related variables in the dataset:
 
--   `HighBP`: a binary indicator for hypertension
--   `HighChol`: a binary indicator for hyperlipidemia
--   `HvyAlcoholConsump`: a binary indicator for alcohol consumption that meets or exceeds 14 drinks/week for men or 7 drinks/week for women
--   `AnyHealthcare`: a binary indicator for having any kind of health insurance coverage
--   `GenHlth`: an ordinal variable for self-rated general health, ranging from 1 ("Excellent") to 5 ("Poor")
-
-Sex and age will also be considered.
+-   Binary factors for hypertension and high cholesterol (yes vs. no)
+-   Reported body mass index (BMI)
+-   Sex (male vs. female)
+-   A factor for having any kind of health insurance coverage (yes vs. no)
+-   An ordinal factor for self-rated general health, ranging from 1 ("Excellent") to 5 ("Poor")
 
 ## Analysis Data
 
 We'll first read in the raw data from the CSV file and then transform the predictors of interest into a form suitable for analysis:
 
 ```{r create data}
-#Read in the raw data
 #| warning: false
-diabetes_raw <- read_csv(file="diabetes_binary_health_indicators_BRFSS2015.csv")
 
+#Read in the raw data
+diabetes_raw <- read_csv(file="diabetes_binary_health_indicators_BRFSS2015.csv",show_col_types=FALSE)par
 
 #Create an analysis dataset containing only the relevant variables
-diabetes_ad <- diabetes_raw |> select(Diabetes_binary, HighBP ,HighChol, BMI, Smoker, HvyAlcoholConsump, AnyHealthcare, GenHlth) |>
-  mutate(high_bp = as_factor(HighBP),
-         high_chol = as_factor(HighChol),
-         heavy_alc = as_factor(HvyAlcoholConsump),
-         smoker = as_factor(Smoker)
-         healthcare = as_factor(AnyHealthcare),
-         gen_health = as_factor(GenHlth),
+yn_label <- c("No","Yes")
+diabetes_ad <- diabetes_raw |> select(Diabetes_binary, HighBP ,HighChol, BMI, Smoker, Sex, AnyHealthcare, GenHlth) |>
+  mutate(high_bp = factor(HighBP, levels=c(0,1), labels=yn_label),
+         high_chol = factor(HighChol, levels=c(0,1), labels=yn_label),
+         sex = factor(Sex, levels=c(0,1), labels=c("Female","Male")),
+         smoker = factor(Smoker, levels=c(0,1), labels=yn_label),
+         healthcare = factor(AnyHealthcare, levels=c(0,1), labels=yn_label),
+         gen_health = factor(GenHlth, levels=c(1,2,3,4,5), labels=c("Excellent", "Very good", "Good", "Fair", "Poor")),
          .keep="unused")
 
 #Check for missing data
-colSums(diabetes_ad,is.na)
+colSums(is.na(diabetes_ad))
 ```
+There is no missingness among the variables that we've chosen, so we can move on to explore the relationships between the incidence of diabetes and the predictor variables we've chosen.
 
 ## Exploratory Analysis
+
+```{r eda 1}
+#
+diabetes_g1 <- diabetes_ad |> pivot_longer(!Diabetes_binary, names_to="var_name")
+                                           
+```
+
+
 
 ## Link to modeling page
 

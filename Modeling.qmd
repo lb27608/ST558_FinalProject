@@ -6,26 +6,99 @@ editor: visual
 ---
 
 ```{r load packages}
+#| include: false
+
+library(readr)
 library(tidyverse)
+library(purrr)
+library(tidymodels)
+library(glmnet)
+library(tree)
+library(ranger)
+library(vip)
 ```
 
-## Quarto
+## Introduction
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+The purpose of this analysis is to create a predictive model for the incidence of diabetes using data from the 2015 [Behavioral Risk Factor Surveillance System (BRFSS)](https://www.cdc.gov/brfss/index.html) survey conducted by the Centers for Disease Control. The dataset we will use for modeling includes survey responses from 253,680 individuals.
 
-## Running Code
+The response variable in the dataset, `Diabetes_binary`, is a 0/1 indicator for the presence of diabetes or prediabetes. There are a number of potential predictors in the dataset, but we will consider only the following health-related variables in the dataset:
 
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+-   Binary factors for hypertension and high cholesterol (yes vs. no)
+-   Reported body mass index (BMI)
+-   Sex (male vs. female)
+-   A factor for having any kind of health insurance coverage (yes vs. no)
+-   An ordinal factor for self-rated general health, ranging from 1 ("Excellent") to 5 ("Poor")
 
-```{r}
-1 + 1
+
+## Analysis Data
+
+As we did for the exploratory data analysis, we'll read in the data from the raw CSV file and transform the predictor variables as needed:
+
+```{r create data}
+#| warning: false
+
+#Read in the raw data
+diabetes_raw <- read_csv(file="diabetes_binary_health_indicators_BRFSS2015.csv",show_col_types=FALSE)
+
+#Create an analysis dataset containing only the relevant variables
+yn_label <- c("No","Yes")
+diabetes_ad <- diabetes_raw |> select(Diabetes_binary, HighBP ,HighChol, BMI, Smoker, Sex, AnyHealthcare, GenHlth) |>
+  mutate(diabetes = factor(Diabetes_binary, levels=c(0,1), labels=c("Diabetes or prediabetes","No diabetes")),
+         high_bp = factor(HighBP, levels=c(0,1), labels=yn_label),
+         high_chol = factor(HighChol, levels=c(0,1), labels=yn_label),
+         sex = factor(Sex, levels=c(0,1), labels=c("Female","Male")),
+         smoker = factor(Smoker, levels=c(0,1), labels=yn_label),
+         healthcare = factor(AnyHealthcare, levels=c(0,1), labels=yn_label),
+         gen_health = factor(GenHlth, levels=c(1,2,3,4,5), labels=c("Excellent", "Very good", "Good", "Fair", "Poor")),
+         .keep="unused")
+
 ```
 
-You can add options to executable code like this
+For modeling, we'll do an initial split of the full dataset into training (70%) and test (30%) sets, and then create a 5-fold cross-validation dataset using the training data:
 
-```{r}
-#| echo: false
-2 * 2
+```{r split data}
+#Create initial split
+set.seed(1434)
+diab_split <- initial_split(diabetes_ad, prop=0.70)
+diab_train <- training(diab_split)
+diab_test <- testing(diab_split)
+
+#Create 5-fold cross-validation sets on the training data
+diab_5_fold <- vfold_cv(diab_train,5)
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+## Modeling
+
+We'll consider both a classification tree model and a random forest model for prediction of diabetes/prediabetes using the variables we have selected.
+
+### Classification Tree
+
+The classification tree model predicts the outcome-in this case, whether or not the subject has diabetes or prediabetes-by splitting the space of predictor variables into regions on step at a time. To create branches, the modeling process considers splits of each potential predictor and selects the one that produces the best separation of the outcome variable. This process is repeated for each new branch of the tree until the algorithm terminates. 
+
+```{r Classification tree model}
+tree_spec <- decision_tree(tree_depth = tune(),
+                           cost_complexity = tune()) |>
+             set_engine("rpart") |> set_mode("classification")
+
+#Create the model recipe
+tree_recipe <- recipe(diabetes ~ ., data = diab_train) |>
+               step_normalize(BMI)
+prep(tree_recipe)
+
+#Create the workflow
+tree_wkf <- workflow() |> add_recipe(tree_recipe) |> add_model(tree_spec)
+
+#Fit the model to the CV folds to select tuning parameters
+tree_grid <- tree_wkf |> tune_grid(resamples=diab_5_fold, 
+                                   grid=grid_regular(cost_complexity(), tree_depth(),
+                                   levels=c(5,5)),
+                                   metric_set=(mn_log_loss))
+
+#Collect metrics and choose model with lowest log loss
+tree_best_params <- select_best(tree_grid, metric="mn_log_loss")
+tree_best_params
+
+#Finalize the workflow and run the final model on the full training set
+tree_final_wkf <- tree_wkf |> finalize_workflow(tree_best_params)
+```
