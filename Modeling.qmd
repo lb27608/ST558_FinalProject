@@ -98,7 +98,9 @@ tree_best_params
 
 ### Random Forest Model
 
-<Add description here>
+The second model that we'll consider is a random forest. These models use bootstrap samples from the training data along with a random subset of the predictor variables to create multiple decision trees. Predictions on new data are then made by choosing the classification that is selected most often by the set of trees in the random forest. 
+
+For our random forest modeling, the number of predictors in the subset chosen for each tree will be chosen by tuning the parameter `mtry`.
 
 ```{r Random forest model}
 rf_spec <- rand_forest(mtry = tune()) |> set_engine("ranger") |>

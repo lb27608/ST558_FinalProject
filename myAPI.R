@@ -36,13 +36,19 @@ rf_full_fit <- rf_wkf |> fit(diabetes_ad)
 #* @param var Predictor variable
 #* @param val Value of the predictor
 #* @get /pred
+function(var,val){
+  
+  
+}
 
 #http://localhost:PORT/pred?var=&val=
 
 #Info endpoint
+#* Display URL and name
 #* @get /info
 function(){
   
   
 }
+
 
