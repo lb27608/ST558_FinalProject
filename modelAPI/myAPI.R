@@ -79,8 +79,9 @@ function(HighBP=0, HighChol=0, BMI=28.38, Smoker=0, Sex=0, AnyHealthcare=1, GenH
 }
 
 #Example pred endpoint calls
-#http://127.0.0.1:8000/pred/GenHlth=4&BMI=37&HighChol=1
-#
+#/pred/GenHlth=4&BMI=37&HighChol=1
+#/pred/GenHlth=2&HighChol=1&HighBP=1
+#/pred/Smoking=1&HighChol=0&HighBP=1&Sex=0
 
 #Confusion matrix endpoint
 #* Display confusion matrix
