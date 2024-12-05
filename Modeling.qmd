@@ -12,10 +12,8 @@ library(readr)
 library(tidyverse)
 library(purrr)
 library(tidymodels)
-library(glmnet)
 library(tree)
 library(ranger)
-library(vip)
 ```
 
 ## Introduction
@@ -44,15 +42,7 @@ diabetes_raw <- read_csv(file="diabetes_binary_health_indicators_BRFSS2015.csv",
 #Create an analysis dataset containing only the relevant variables
 yn_label <- c("No","Yes")
 diabetes_ad <- diabetes_raw |> select(Diabetes_binary, HighBP ,HighChol, BMI, Smoker, Sex, AnyHealthcare, GenHlth) |>
-  mutate(diabetes = factor(Diabetes_binary, levels=c(0,1), labels=c("Diabetes or prediabetes","No diabetes")),
-         high_bp = factor(HighBP, levels=c(0,1), labels=yn_label),
-         high_chol = factor(HighChol, levels=c(0,1), labels=yn_label),
-         sex = factor(Sex, levels=c(0,1), labels=c("Female","Male")),
-         smoker = factor(Smoker, levels=c(0,1), labels=yn_label),
-         healthcare = factor(AnyHealthcare, levels=c(0,1), labels=yn_label),
-         gen_health = factor(GenHlth, levels=c(1,2,3,4,5), labels=c("Excellent", "Very good", "Good", "Fair", "Poor")),
-         .keep="unused")
-
+               mutate(diabetes = factor(Diabetes_binary, levels=c(0,1), labels=c("No diabetes", "Diabetes or prediabetes")))
 ```
 
 For modeling, we'll do an initial split of the full dataset into training (70%) and test (30%) sets, and then create a 5-fold cross-validation dataset using the training data:
@@ -77,12 +67,18 @@ We'll consider both a classification tree model and a random forest model for pr
 The classification tree model predicts the outcome-in this case, whether or not the subject has diabetes or prediabetes-by splitting the space of predictor variables into regions on step at a time. To create branches, the modeling process considers splits of each potential predictor and selects the one that produces the best separation of the outcome variable. This process is repeated for each new branch of the tree until the algorithm terminates. 
 
 ```{r Classification tree model}
-tree_spec <- decision_tree(tree_depth = tune(),
+tree_spec <- decision_tree(tree_depth = 8,
                            cost_complexity = tune()) |>
              set_engine("rpart") |> set_mode("classification")
 
 #Create the model recipe
 tree_recipe <- recipe(diabetes ~ ., data = diab_train) |>
+               step_mutate(high_bp = factor(HighBP, levels=c(0,1), labels=yn_label),
+                           high_chol = factor(HighChol, levels=c(0,1), labels=yn_label),
+                           sex = factor(Sex, levels=c(0,1), labels=c("Female","Male")),
+                           smoker = factor(Smoker, levels=c(0,1), labels=c("Less than 100 packs or none", "At least 100 packs")),
+                           healthcare = factor(AnyHealthcare, levels=c(0,1), labels=yn_label),
+                           gen_health = factor(GenHlth, levels=c(1,2,3,4,5), labels=c("Excellent", "Very good", "Good", "Fair", "Poor"))) |>
                step_normalize(BMI)
 prep(tree_recipe)
 
@@ -91,14 +87,52 @@ tree_wkf <- workflow() |> add_recipe(tree_recipe) |> add_model(tree_spec)
 
 #Fit the model to the CV folds to select tuning parameters
 tree_grid <- tree_wkf |> tune_grid(resamples=diab_5_fold, 
-                                   grid=grid_regular(cost_complexity(), tree_depth(),
-                                   levels=c(5,5)),
-                                   metric_set=(mn_log_loss))
+                                   grid=grid_regular(cost_complexity(),
+                                   levels=5),
+                                   metrics=metric_set(mn_log_loss))
 
 #Collect metrics and choose model with lowest log loss
 tree_best_params <- select_best(tree_grid, metric="mn_log_loss")
 tree_best_params
-
-#Finalize the workflow and run the final model on the full training set
-tree_final_wkf <- tree_wkf |> finalize_workflow(tree_best_params)
 ```
+
+### Random Forest Model
+
+<Add description here>
+
+```{r Random forest model}
+rf_spec <- rand_forest(mtry = tune()) |> set_engine("ranger") |>
+set_mode("classification")
+
+#Create the workflow using the same model recipe as before
+rf_wkf <- workflow() |> add_recipe(tree_recipe) |> add_model(rf_spec)
+
+#Fit the model to the CV folds to select tuning parameter for mtry
+rf_grid <- rf_wkf |> tune_grid(resamples = diab_5_fold,
+                               grid = 7,
+                               metrics = metric_set(mn_log_loss))
+
+#Collect metrics and choose model with lowest log loss, then display the tuning params
+rf_best_params <- select_best(rf_grid, metric="mn_log_loss")
+rf_best_params
+```
+Among the grid of values that was searched, the best value of `mtry` was 3.
+
+### Comparing Models
+
+To select the best model, we'll compare the final classification tree and random forest models by checking their performance on the test portion of the data. The model with the smallest log loss will be the one that we use in the development of the API in the next step of the project.
+
+```{r compare models}
+
+#Finalize the workflows and run the final models on the full training set
+tree_final_wkf <- tree_wkf |> finalize_workflow(tree_best_params)
+tree_final_fit <- tree_final_wkf |> last_fit(diab_split, metrics=metric_set(mn_log_loss))
+rf_final_wkf <- rf_wkf |> finalize_workflow(rf_best_params)
+rf_final_fit <- rf_final_wkf |> last_fit(diab_split, metrics=metric_set(mn_log_loss))
+
+tree_final_fit |> collect_metrics()
+rf_final_fit |> collect_metrics()
+```
+The log loss values for the final tree model and final random forest model are 0.333 and 0.323, respectively, so we will use the random forest model in our API.
+
+

@@ -20,6 +20,7 @@ The response variable in the dataset, `Diabetes_binary`, is a 0/1 indicator for 
 -   Binary factors for hypertension and high cholesterol (yes vs. no)
 -   Reported body mass index (BMI)
 -   Sex (male vs. female)
+-   Smoking history (at least 100 packs in a lifetime vs. less or none)
 -   A factor for having any kind of health insurance coverage (yes vs. no)
 -   An ordinal factor for self-rated general health, ranging from 1 ("Excellent") to 5 ("Poor")
 
@@ -31,15 +32,16 @@ We'll first read in the raw data from the CSV file and then transform the predic
 #| warning: false
 
 #Read in the raw data
-diabetes_raw <- read_csv(file="diabetes_binary_health_indicators_BRFSS2015.csv",show_col_types=FALSE)par
+diabetes_raw <- read_csv(file="diabetes_binary_health_indicators_BRFSS2015.csv",show_col_types=FALSE)
 
 #Create an analysis dataset containing only the relevant variables
 yn_label <- c("No","Yes")
 diabetes_ad <- diabetes_raw |> select(Diabetes_binary, HighBP ,HighChol, BMI, Smoker, Sex, AnyHealthcare, GenHlth) |>
-  mutate(high_bp = factor(HighBP, levels=c(0,1), labels=yn_label),
+  mutate(diabetes = factor(Diabetes_binary, levels=c(0,1), labels=c("No diabetes", "Diabetes or prediabetes")),
+         high_bp = factor(HighBP, levels=c(0,1), labels=yn_label),
          high_chol = factor(HighChol, levels=c(0,1), labels=yn_label),
          sex = factor(Sex, levels=c(0,1), labels=c("Female","Male")),
-         smoker = factor(Smoker, levels=c(0,1), labels=yn_label),
+         smoker = factor(Smoker, levels=c(0,1), labels=c("Less than 100 packs or none", "At least 100 packs")),
          healthcare = factor(AnyHealthcare, levels=c(0,1), labels=yn_label),
          gen_health = factor(GenHlth, levels=c(1,2,3,4,5), labels=c("Excellent", "Very good", "Good", "Fair", "Poor")),
          .keep="unused")
@@ -51,13 +53,46 @@ There is no missingness among the variables that we've chosen, so we can move on
 
 ## Exploratory Analysis
 
+For the first part of the exploratory data analysis, we'll examine the predictor variables to find the most prevalent values for the categorical predictors and the summary statistics for the only continuous predictor we've chosen, BMI:
+
 ```{r eda 1}
-#
-diabetes_g1 <- diabetes_ad |> pivot_longer(!Diabetes_binary, names_to="var_name")
-                                           
+#Number with prediabetes or diabetes
+prop.table(table(diabetes_ad$diabetes))
+
+#Categorical summaries for predictors
+prop.table(table(diabetes_ad$high_bp))
+prop.table(table(diabetes_ad$high_chol))
+prop.table(table(diabetes_ad$sex))
+prop.table(table(diabetes_ad$smoker))
+prop.table(table(diabetes_ad$healthcare))
+prop.table(table(diabetes_ad$gen_health))
+
+#Summary statistics for BMI
+mean(diabetes_ad$BMI)
+```
+From these results, we can see that the majority of subjects in this data do not have diabetes or prediabetes. Less than half have hypertension or high cholesterol, over half are female, about 44% have smoked at least 100 packs of cigarettes, and over 95% have some form of health insurance. A majority of subjects rated their own health as "Very good" or "good", with only about 17% saying their health was "fair" or "poor".
+
+Next, we'll look at how the predictors break down by diabetes status:
+```{r eda 2}
+#Categorical summaries for predictors
+prop.table(table(diabetes_ad$diabetes, diabetes_ad$high_bp),margin=1)
+prop.table(table(diabetes_ad$diabetes, diabetes_ad$high_chol),margin=1)
+prop.table(table(diabetes_ad$diabetes, diabetes_ad$sex),margin=1)
+prop.table(table(diabetes_ad$diabetes, diabetes_ad$smoker),margin=1)
+prop.table(table(diabetes_ad$diabetes, diabetes_ad$healthcare),margin=1)
+prop.table(table(diabetes_ad$diabetes, diabetes_ad$gen_health),margin=1)
 ```
 
+These tables suggest hypertension and high cholesterol might be strong predictors of diabetes, with over two-thirds of those with diabetes reporting hypertension or high cholesterol. Smoking history also appears to differ by diabetes status, with a larger proportion of diabetics reporting having smoked at least 100 packs of cigarettes, but the association isn't as strong as high blood pressure or cholesterol. Sex and healthcare coverage do not appear to be strongly related to diabetes status. Finally, those with diabetes or prediabetes rate their health lower overall compared to those without these conditions.
 
+We'll consider summary statsitics and a smoothed histogram to compare the distributions of BMI values for those with diabetes/prediabetes vs. those without:
+```{r eda 3}
+diabetes_ad |> group_by(diabetes) |> summarize(Mean=mean(BMI),SD=sd(BMI),)
+
+#Smoothed histogram
+ggplot(diabetes_ad, aes(x = BMI)) + geom_density(alpha = 0.5, aes(fill = diabetes)) + ylab("Density") + scale_fill_discrete(name = "")
+```
+The summary statistics indicate that the mean BMI for those with diabetes or prediabetes is about 4 points higher than those without these conditions, and the histogram shows that the entire distribution of BMI values is shifted to the right for the diabetic group. These results suggest that BMI could be a predictor for diabetes.
 
 ## Link to modeling page
 
