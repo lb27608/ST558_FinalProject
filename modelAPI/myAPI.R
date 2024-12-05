@@ -1,12 +1,7 @@
-#
-# This is a Plumber API. You can run the API by clicking
-# the 'Run API' button above.
-#
-# Find out more about building APIs with Plumber here:
-#
-#    https://www.rplumber.io/
-#
+#ST558 Final Project: Plumber API
+#Lee Bennett
 
+#Library setup
 library(plumber)
 library(readr)
 library(tidyverse)
@@ -15,7 +10,7 @@ library(ranger)
 
 #Create the final random forest model for the API
 #Load raw data
-diabetes_raw <- read_csv(file="../diabetes_binary_health_indicators_BRFSS2015.csv",show_col_types=FALSE)
+diabetes_raw <- read_csv(file="diabetes_binary_health_indicators_BRFSS2015.csv",show_col_types=FALSE)
 
 #Create an analysis dataset containing only the relevant variables
 yn_label <- c("No","Yes")
@@ -44,6 +39,8 @@ names(cm_tib)<-c("truth","predicted")
 
 #Create shell of tibble for prediction with mean/most prevalent classes
 pred_shell <- diabetes_ad[1,] |> select(-c(diabetes))
+
+#Main API coding
 
 #* @apiTitle ST558 Final Project API
 #* @apiDescription Plumber example description.
@@ -81,6 +78,9 @@ function(HighBP=0, HighChol=0, BMI=28.38, Smoker=0, Sex=0, AnyHealthcare=1, GenH
   print(newpred$.pred_class)
 }
 
+#Example pred endpoint calls
+#http://127.0.0.1:8000/pred/GenHlth=4&BMI=37&HighChol=1
+#
 
 #Confusion matrix endpoint
 #* Display confusion matrix
