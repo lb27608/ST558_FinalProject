@@ -28,7 +28,6 @@ The response variable in the dataset, `Diabetes_binary`, is a 0/1 indicator for 
 -   A factor for having any kind of health insurance coverage (yes vs. no)
 -   An ordinal factor for self-rated general health, ranging from 1 ("Excellent") to 5 ("Poor")
 
-
 ## Analysis Data
 
 As we did for the exploratory data analysis, we'll read in the data from the raw CSV file and transform the predictor variables as needed:
@@ -42,7 +41,8 @@ diabetes_raw <- read_csv(file="diabetes_binary_health_indicators_BRFSS2015.csv",
 #Create an analysis dataset containing only the relevant variables
 yn_label <- c("No","Yes")
 diabetes_ad <- diabetes_raw |> select(Diabetes_binary, HighBP ,HighChol, BMI, Smoker, Sex, AnyHealthcare, GenHlth) |>
-               mutate(diabetes = factor(Diabetes_binary, levels=c(0,1), labels=c("No diabetes", "Diabetes or prediabetes")))
+  mutate(diabetes = factor(Diabetes_binary, levels=c(0,1), labels=c("No diabetes", "Diabetes or prediabetes"))) |>
+  select(-Diabetes_binary)
 ```
 
 For modeling, we'll do an initial split of the full dataset into training (70%) and test (30%) sets, and then create a 5-fold cross-validation dataset using the training data:
@@ -64,7 +64,7 @@ We'll consider both a classification tree model and a random forest model for pr
 
 ### Classification Tree
 
-The classification tree model predicts the outcome-in this case, whether or not the subject has diabetes or prediabetes-by splitting the space of predictor variables into regions on step at a time. To create branches, the modeling process considers splits of each potential predictor and selects the one that produces the best separation of the outcome variable. This process is repeated for each new branch of the tree until the algorithm terminates. 
+The classification tree model predicts the outcome-in this case, whether or not the subject has diabetes or prediabetes-by splitting the space of predictor variables into regions on step at a time. To create branches, the modeling process considers splits of each potential predictor and selects the one that produces the best separation of the outcome variable. This process is repeated for each new branch of the tree until the algorithm terminates.
 
 ```{r Classification tree model}
 tree_spec <- decision_tree(tree_depth = 8,
@@ -98,7 +98,7 @@ tree_best_params
 
 ### Random Forest Model
 
-The second model that we'll consider is a random forest. These models use bootstrap samples from the training data along with a random subset of the predictor variables to create multiple decision trees. Predictions on new data are then made by choosing the classification that is selected most often by the set of trees in the random forest. 
+The second model that we'll consider is a random forest. These models use bootstrap samples from the training data along with a random subset of the predictor variables to create multiple decision trees. Predictions on new data are then made by choosing the classification that is selected most often by the set of trees in the random forest.
 
 For our random forest modeling, the number of predictors in the subset chosen for each tree will be chosen by tuning the parameter `mtry`.
 
@@ -118,6 +118,7 @@ rf_grid <- rf_wkf |> tune_grid(resamples = diab_5_fold,
 rf_best_params <- select_best(rf_grid, metric="mn_log_loss")
 rf_best_params
 ```
+
 Among the grid of values that was searched, the best value of `mtry` was 3.
 
 ### Comparing Models
@@ -135,6 +136,5 @@ rf_final_fit <- rf_final_wkf |> last_fit(diab_split, metrics=metric_set(mn_log_l
 tree_final_fit |> collect_metrics()
 rf_final_fit |> collect_metrics()
 ```
-The log loss values for the final tree model and final random forest model are 0.333 and 0.323, respectively, so we will use the random forest model in our API.
 
-
+The log loss values for the final tree model and final random forest model are 0.333 and 0.324, respectively, so we will use the random forest model in our API.
